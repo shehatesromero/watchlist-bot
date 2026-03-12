@@ -30,21 +30,38 @@ async function initUser() {
   const tgUser = tg?.initDataUnsafe?.user;
 
   if (tgUser) {
-    state.user = await apiUpsertUser({
-      telegram_id: tgUser.id,
-      username:    tgUser.username  || null,
-      first_name:  tgUser.first_name || 'User',
-    });
+    try {
+      state.user = await apiUpsertUser({
+        telegram_id: tgUser.id,
+        username:    tgUser.username   || null,
+        first_name:  tgUser.first_name || 'User',
+      });
+    } catch (e) {
+      console.error('apiUpsertUser failed:', e);
+    }
+    // Fallback: use Telegram data directly if DB call failed
+    if (!state.user) {
+      state.user = {
+        telegram_id: tgUser.id,
+        first_name:  tgUser.first_name || 'User',
+        username:    tgUser.username   || null,
+        group_id:    null,
+      };
+    }
   } else {
-    // Dev fallback: mock user for browser testing
+    // Dev fallback for browser testing
     state.user = { telegram_id: 0, first_name: 'Dev', username: null, group_id: null };
   }
 
-  const full = state.user?.telegram_id
-    ? await apiGetUser(state.user.telegram_id)
-    : null;
-  state.group = full?.groups || null;
-  if (state.user) state.user.group_id = full?.group_id || null;
+  try {
+    const full = state.user.telegram_id
+      ? await apiGetUser(state.user.telegram_id)
+      : null;
+    state.group = full?.groups || null;
+    state.user.group_id = full?.group_id || null;
+  } catch (e) {
+    console.error('apiGetUser failed:', e);
+  }
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────

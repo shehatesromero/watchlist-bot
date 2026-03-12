@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone, timedelta
 from supabase import create_client, Client
 from config import SUPABASE_URL, SUPABASE_KEY, ARCHIVE_AFTER_DAYS
 
@@ -93,7 +94,7 @@ async def archive_old_videos() -> int:
         .update({"is_archived": True})
         .eq("status", "watched")
         .eq("is_archived", False)
-        .lt("watched_at", f"now() - interval '{ARCHIVE_AFTER_DAYS} days'")
+        .lt("watched_at", (datetime.now(timezone.utc) - timedelta(days=ARCHIVE_AFTER_DAYS)).isoformat())
         .execute()
     )
     return len(res.data) if res.data else 0
