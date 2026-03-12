@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Что посмотреть</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ── App ──────────────────────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Header -->
+  <header class="header">
+    <h1 class="header-title" id="headerTitle">Что посмотреть</h1>
+    <button class="btn-add" id="btnAdd" title="Добавить видео">+</button>
+  </header>
+
+  <!-- Tab switcher (visible only on watch page) -->
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="group">👫 Общее</button>
+    <button class="tab" data-tab="personal">🔒 Моё</button>
+  </div>
+
+  <!-- Pages -->
+  <main class="main">
+
+    <!-- Watch page -->
+    <div class="page active" id="page-watch">
+      <div id="videoList" class="video-list">
+        <div class="loader"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- Archive page -->
+    <div class="page" id="page-archive">
+      <div id="archiveList" class="video-list">
+        <div class="loader"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- Stats page -->
+    <div class="page" id="page-stats">
+      <div id="statsContent">
+        <div class="loader"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-page="watch">
+      <span class="nav-icon">📋</span>
+      <span class="nav-label">Список</span>
+    </button>
+    <button class="nav-item" data-page="archive">
+      <span class="nav-icon">📁</span>
+      <span class="nav-label">Архив</span>
+    </button>
+    <button class="nav-item" data-page="stats">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Статистика</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- ── Add Video Modal ───────────────────────────────────────────────────────── -->
+<div class="modal" id="modalAdd">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Добавить видео</h2>
+      <button class="modal-close" id="closeAdd">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="input-group">
+        <input type="url" id="videoUrl" placeholder="Ссылка на YouTube…" autocomplete="off" />
+        <button id="btnFetch">Найти</button>
+      </div>
+
+      <div class="video-preview" id="videoPreview" hidden>
+        <img id="previewThumb" src="" alt="thumbnail" />
+        <div>
+          <div id="previewTitle" class="preview-title"></div>
+          <div id="previewAuthor" class="preview-author"></div>
+        </div>
+      </div>
+
+      <div id="addFormExtra" hidden>
+        <div class="input-group">
+          <input type="text" id="videoTags" placeholder="Теги через запятую (необязательно)" />
+        </div>
+
+        <div class="priority-group">
+          <label>Приоритет:</label>
+          <div class="priority-buttons">
+            <button class="priority-btn active" data-priority="0">Обычный</button>
+            <button class="priority-btn" data-priority="1">⭐ Важно</button>
+          </div>
+        </div>
+
+        <div class="scope-group" id="scopeGroup"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" id="btnSaveVideo" disabled>Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Timecode Modal ────────────────────────────────────────────────────────── -->
+<div class="modal modal-sm" id="modalTimecode">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Остановились на…</h2>
+      <button class="modal-close" id="closeTimecode">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="text" id="timecodeInput" placeholder="13:45" maxlength="8" inputmode="numeric" />
+      <p class="hint">Формат: ММ:СС или ЧЧ:ММ:СС</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" id="btnSaveTimecode">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ─────────────────────────────────────────────────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
