@@ -338,8 +338,8 @@ function openAddModal() {
   state.pendingVideo = null;
   document.getElementById('videoUrl').value = '';
   document.getElementById('videoTags').value = '';
-  document.getElementById('videoPreview').hidden = true;
-  document.getElementById('addFormExtra').hidden = true;
+  document.getElementById('videoPreview').style.display = 'none';
+  document.getElementById('addFormExtra').style.display = 'none';
   document.getElementById('btnSaveVideo').disabled = true;
   document.querySelectorAll('.priority-btn').forEach((b,i) => b.classList.toggle('active', i===0));
   state.selectedPriority = 0;
@@ -371,8 +371,8 @@ async function onFetchVideo() {
   document.getElementById('previewThumb').src = info.thumbnail;
   document.getElementById('previewTitle').textContent = info.title;
   document.getElementById('previewAuthor').textContent = info.author;
-  document.getElementById('videoPreview').hidden = false;
-  document.getElementById('addFormExtra').hidden = false;
+  document.getElementById('videoPreview').style.display = 'flex';
+  document.getElementById('addFormExtra').style.display = 'block';
   document.getElementById('btnSaveVideo').disabled = false;
 }
 
