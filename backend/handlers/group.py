@@ -35,7 +35,7 @@ async def cmd_group(message: Message) -> None:
 
 @router.callback_query(F.data == "group_create")
 async def cb_group_create(callback: CallbackQuery, state: FSMContext) -> None:
-    await callback.message.answer("Введи название для вашей группы (например, <i>Мы с Катей</i>):")
+    await callback.message.answer("Введи название для вашей группы (например, <i>Мы с Поликом</i>):")
     await state.set_state(GroupStates.waiting_name)
     await callback.answer()
 
