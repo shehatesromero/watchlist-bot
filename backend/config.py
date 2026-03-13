@@ -6,6 +6,6 @@ load_dotenv()
 BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
 SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
-MINIAPP_URL: str = os.getenv("MINIAPP_URL", "https://shehatesromero.github.io/watchlist-bot/")
+MINIAPP_URL: str = os.getenv("MINIAPP_URL", "")
 
 ARCHIVE_AFTER_DAYS: int = 7
