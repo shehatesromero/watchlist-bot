@@ -7,7 +7,8 @@ const tg = window.Telegram?.WebApp;
 // ── State ────────────────────────────────────────────────────────────────────
 const state = {
   user:             null,
-  group:            null,
+  group:            null,   // active group
+  groups:           [],     // all groups user belongs to
   tab:              'group',
   page:             'watch',
   pendingVideo:     null,
@@ -58,8 +59,16 @@ async function initUser() {
     const full = state.user.telegram_id
       ? await apiGetUser(state.user.telegram_id)
       : null;
-    state.group = full?.groups || null;
+
+    // Build list of all groups (multi-group support via user_groups junction table)
+    const allGroups = (full?.user_groups || []).map(ug => ug.groups).filter(Boolean);
+    // Fallback for pre-migration state: use direct FK join
+    if (!allGroups.length && full?.groups) allGroups.push(full.groups);
+
+    state.groups = allGroups;
     state.user.group_id = full?.group_id || null;
+    // Active group = one pointed to by users.group_id (or first available)
+    state.group = allGroups.find(g => g.id === full?.group_id) || allGroups[0] || null;
   } catch (e) {
     console.error('apiGetUser failed:', e);
   }
@@ -74,7 +83,11 @@ function checkTabVisibility() {
     tabsEl.hidden = true;
   } else {
     tabsEl.hidden = false;
+    // Show active group name in the group tab
+    const groupTab = document.querySelector('.tab[data-tab="group"]');
+    if (groupTab) groupTab.textContent = state.group.name;
   }
+  renderGroupSwitcher();
 }
 
 function setPage(page) {
@@ -88,7 +101,10 @@ function setPage(page) {
   const tabsEl = document.getElementById('tabs');
   tabsEl.hidden = page !== 'watch' || !state.group;
 
-  const titles = { watch: 'Что посмотреть', archive: 'Архив', stats: 'Статистика' };
+  if (page === 'watch') renderGroupSwitcher();
+  else document.getElementById('groupSwitcher').style.display = 'none';
+
+  const titles = { watch: 'Че Посмотрим', archive: 'Архив', stats: 'Статистика' };
   document.getElementById('headerTitle').textContent = titles[page];
 
   loadPage();
@@ -98,6 +114,7 @@ function setTab(tab) {
   state.tab = tab;
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('active', t.dataset.tab === tab));
+  renderGroupSwitcher();
   loadWatchList();
 }
 
@@ -313,6 +330,10 @@ function setupListeners() {
   document.querySelectorAll('.tab').forEach(t =>
     t.addEventListener('click', () => setTab(t.dataset.tab)));
 
+  // Groups modal
+  document.getElementById('btnGroups').addEventListener('click', openGroupsModal);
+  document.getElementById('closeGroups').addEventListener('click', closeGroupsModal);
+
   // Open add modal
   document.getElementById('btnAdd').addEventListener('click', openAddModal);
   document.getElementById('closeAdd').addEventListener('click', closeAddModal);
@@ -368,6 +389,7 @@ function initScopeButtons() {
 
 // ── Add video flow ────────────────────────────────────────────────────────────
 function openAddModal() {
+  initScopeButtons(); // refresh with current active group
   state.pendingVideo = null;
   document.getElementById('videoUrl').value = '';
   document.getElementById('videoTags').value = '';
@@ -530,4 +552,222 @@ function showToast(msg) {
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── Group switcher (multi-group pill row below tabs) ──────────────────────────
+function renderGroupSwitcher() {
+  const el = document.getElementById('groupSwitcher');
+  const show = state.tab === 'group' && state.page === 'watch' && state.groups.length > 1;
+  el.style.display = show ? 'flex' : 'none';
+  if (!show) return;
+
+  el.innerHTML = state.groups.map(g =>
+    `<button class="group-chip${g.id === state.group?.id ? ' active' : ''}" data-gid="${escHtml(g.id)}">${escHtml(g.name)}</button>`
+  ).join('');
+
+  el.querySelectorAll('.group-chip').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      if (btn.dataset.gid === state.group?.id) return;
+      try {
+        await apiSwitchGroup(state.user.telegram_id, btn.dataset.gid);
+        state.group = state.groups.find(g => g.id === btn.dataset.gid);
+        state.user.group_id = state.group.id;
+        renderGroupSwitcher();
+        loadWatchList();
+      } catch (e) { showToast('Ошибка: ' + e.message); }
+    }));
+}
+
+// ── Groups modal ──────────────────────────────────────────────────────────────
+function tgConfirm(message) {
+  return new Promise(resolve => {
+    if (tg?.showConfirm) tg.showConfirm(message, resolve);
+    else resolve(confirm(message));
+  });
+}
+
+async function openGroupsModal() {
+  document.getElementById('modalGroups').classList.add('open');
+  await renderGroupsModal();
+}
+
+function closeGroupsModal() {
+  document.getElementById('modalGroups').classList.remove('open');
+}
+
+async function renderGroupsModal() {
+  const body = document.getElementById('groupsModalBody');
+  body.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+
+  // Load members for groups where current user is the creator
+  const memberMap = {};
+  for (const g of state.groups) {
+    if (String(g.created_by) === String(state.user.telegram_id)) {
+      try { memberMap[g.id] = await apiGetGroupMembers(g.id); }
+      catch { memberMap[g.id] = []; }
+    }
+  }
+
+  const groupsHtml = state.groups.length
+    ? '<div class="modal-section-title">Мои группы</div>' +
+      state.groups.map(g => {
+        const isActive    = g.id === state.group?.id;
+        const isCreator   = String(g.created_by) === String(state.user.telegram_id);
+        const members     = memberMap[g.id] || [];
+
+        const membersHtml = isCreator ? `
+          <div class="members-list">
+            <div class="members-title">Участники (${members.length})</div>
+            ${members.map(m => {
+              const isSelf = String(m.telegram_id) === String(state.user.telegram_id);
+              const name   = m.username ? `@${m.username}` : escHtml(m.first_name);
+              return `<div class="member-row">
+                <span class="member-name">${name}</span>
+                ${isSelf
+                  ? '<span class="badge-self">Вы</span>'
+                  : `<button class="btn btn-danger btn-kick"
+                       data-gid="${escHtml(g.id)}" data-uid="${m.telegram_id}"
+                       data-name="${name}">Кик</button>`}
+              </div>`;
+            }).join('')}
+          </div>
+          <button class="btn-delete-group" data-gid="${escHtml(g.id)}" data-name="${escHtml(g.name)}">
+            Удалить группу
+          </button>` : '';
+
+        return `
+          <div class="group-row">
+            <div class="group-row-info">
+              <div class="group-row-name">
+                ${escHtml(g.name)}
+                ${isCreator ? '<span class="badge-creator">Создатель</span>' : ''}
+              </div>
+              <div class="group-row-code">
+                Код: <span class="code-chip">${escHtml(g.invite_code)}</span>
+                <button class="btn-copy-code" data-code="${escHtml(g.invite_code)}">Скопировать</button>
+              </div>
+              ${membersHtml}
+            </div>
+            <div class="group-row-aside">
+              ${isActive
+                ? '<span class="badge-active">Активна</span>'
+                : `<button class="btn btn-outline btn-switch-group" data-gid="${escHtml(g.id)}">Выбрать</button>`}
+            </div>
+          </div>`;
+      }).join('')
+    : '';
+
+  body.innerHTML = `
+    ${groupsHtml}
+    <div class="modal-section-title">Создать группу</div>
+    <div class="input-group">
+      <input type="text" id="newGroupName" placeholder="Название группы…" />
+      <button id="btnCreateGroup">Создать</button>
+    </div>
+    <div class="modal-section-title">Вступить по коду</div>
+    <div class="input-group">
+      <input type="text" id="joinGroupCode" placeholder="Код приглашения…" autocapitalize="characters" />
+      <button id="btnJoinGroup">Вступить</button>
+    </div>
+  `;
+
+  body.querySelectorAll('.btn-copy-code').forEach(btn =>
+    btn.addEventListener('click', () =>
+      navigator.clipboard?.writeText(btn.dataset.code)
+        .then(() => showToast('Код скопирован'))
+        .catch(() => showToast('Код: ' + btn.dataset.code))));
+
+  body.querySelectorAll('.btn-switch-group').forEach(btn =>
+    btn.addEventListener('click', () => switchToGroup(btn.dataset.gid)));
+
+  body.querySelectorAll('.btn-kick').forEach(btn =>
+    btn.addEventListener('click', () =>
+      onKickMember(btn.dataset.gid, btn.dataset.uid, btn.dataset.name)));
+
+  body.querySelectorAll('.btn-delete-group').forEach(btn =>
+    btn.addEventListener('click', () =>
+      onDeleteGroup(btn.dataset.gid, btn.dataset.name)));
+
+  document.getElementById('btnCreateGroup').addEventListener('click', onCreateGroup);
+  document.getElementById('btnJoinGroup').addEventListener('click', onJoinGroup);
+}
+
+async function switchToGroup(groupId) {
+  try {
+    await apiSwitchGroup(state.user.telegram_id, groupId);
+    state.group = state.groups.find(g => g.id === groupId);
+    state.user.group_id = groupId;
+    await renderGroupsModal();
+    checkTabVisibility();
+    initScopeButtons();
+    if (state.page === 'watch' && state.tab === 'group') loadWatchList();
+  } catch (e) { showToast('Ошибка: ' + e.message); }
+}
+
+async function onKickMember(groupId, memberTelegramId, memberName) {
+  if (!await tgConfirm(`Исключить ${memberName} из группы?`)) return;
+  try {
+    await apiKickMember(groupId, memberTelegramId);
+    showToast(`${memberName} исключён`);
+    await renderGroupsModal();
+  } catch (e) { showToast('Ошибка: ' + e.message); }
+}
+
+async function onDeleteGroup(groupId, groupName) {
+  if (!await tgConfirm(`Удалить группу «${groupName}»?\nВсе участники будут исключены.`)) return;
+  try {
+    await apiDeleteGroup(groupId);
+    state.groups = state.groups.filter(g => g.id !== groupId);
+    if (state.group?.id === groupId) {
+      state.group = state.groups[0] || null;
+      state.user.group_id = state.group?.id || null;
+    }
+    showToast(`Группа «${groupName}» удалена`);
+    closeGroupsModal();
+    checkTabVisibility();
+    initScopeButtons();
+    if (state.group) loadWatchList(); else loadPage();
+  } catch (e) { showToast('Ошибка: ' + e.message); }
+}
+
+async function onCreateGroup() {
+  const input = document.getElementById('newGroupName');
+  const name = input.value.trim();
+  if (!name) { showToast('Введи название группы'); return; }
+
+  const btn = document.getElementById('btnCreateGroup');
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const group = await apiCreateGroup(name, state.user.telegram_id);
+    if (!state.groups.find(g => g.id === group.id)) state.groups.push(group);
+    state.group = group;
+    state.user.group_id = group.id;
+    showToast(`Группа создана! Код: ${group.invite_code}`);
+    closeGroupsModal();
+    checkTabVisibility();
+    initScopeButtons();
+    if (state.tab !== 'group') setTab('group'); else loadWatchList();
+  } catch (e) { showToast('Ошибка: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Создать'; }
+}
+
+async function onJoinGroup() {
+  const input = document.getElementById('joinGroupCode');
+  const code = input.value.trim();
+  if (!code) { showToast('Введи код приглашения'); return; }
+
+  const btn = document.getElementById('btnJoinGroup');
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const group = await apiJoinGroup(code, state.user.telegram_id);
+    if (!state.groups.find(g => g.id === group.id)) state.groups.push(group);
+    state.group = group;
+    state.user.group_id = group.id;
+    showToast(`Вступил в группу "${group.name}"!`);
+    closeGroupsModal();
+    checkTabVisibility();
+    initScopeButtons();
+    if (state.tab !== 'group') setTab('group'); else loadWatchList();
+  } catch (e) { showToast('Ошибка: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Вступить'; }
 }

@@ -17,13 +17,17 @@ def get_client() -> Client:
 
 async def upsert_user(telegram_id: int, username: str | None, first_name: str) -> dict:
     client = get_client()
-    data = {
-        "telegram_id": telegram_id,
-        "username": username,
-        "first_name": first_name,
-    }
-    res = client.table("users").upsert(data, on_conflict="telegram_id").execute()
-    return res.data[0] if res.data else data
+    # Update profile fields only — never resets group_id
+    res = client.table("users").update(
+        {"username": username, "first_name": first_name}
+    ).eq("telegram_id", telegram_id).execute()
+    if res.data:
+        return res.data[0]
+    # New user — insert fresh row
+    res = client.table("users").insert(
+        {"telegram_id": telegram_id, "username": username, "first_name": first_name}
+    ).execute()
+    return res.data[0] if res.data else {"telegram_id": telegram_id, "username": username, "first_name": first_name}
 
 
 async def get_user(telegram_id: int) -> dict | None:

@@ -591,3 +591,183 @@ img    { display: block; }
   padding: 14px;
   letter-spacing: 2px;
 }
+
+/* ── Header actions ────────────────────────────────────────────────────────── */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-groups {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: rgba(120,120,128,.12);
+  color: var(--hint);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity var(--transition), transform var(--transition);
+}
+.btn-groups:active { opacity: .7; transform: scale(.93); }
+
+/* ── Group chip switcher ────────────────────────────────────────────────────── */
+.group-switcher {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+}
+.group-switcher::-webkit-scrollbar { display: none; }
+
+.group-chip {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(120,120,128,.1);
+  border: 1px solid rgba(120,120,128,.15);
+  color: var(--hint);
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.group-chip.active {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(10,132,255,.3);
+}
+
+/* ── Groups modal ──────────────────────────────────────────────────────────── */
+.modal-groups .modal-body-scroll {
+  max-height: 62dvh;
+  overflow-y: auto;
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(120,120,128,.1);
+}
+.group-row:last-of-type { border-bottom: none; }
+
+.group-row-info { flex: 1; min-width: 0; }
+.group-row-name { font-size: 15px; font-weight: 600; margin-bottom: 3px; }
+.group-row-code {
+  font-size: 12px; color: var(--hint);
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+
+.code-chip {
+  font-family: monospace;
+  font-size: 13px;
+  background: rgba(120,120,128,.1);
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: .5px;
+  color: var(--text);
+}
+
+.btn-copy-code {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(10,132,255,.08);
+  border: 1px solid rgba(10,132,255,.2);
+}
+
+.badge-active {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  background: rgba(52,199,89,.1);
+  border: 1px solid rgba(52,199,89,.3);
+  color: #34c759;
+  white-space: nowrap;
+}
+
+/* ── Group members & admin controls ────────────────────────────────────────── */
+.group-row { align-items: flex-start; }
+
+.group-row-aside {
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.badge-creator {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(245,166,35,.15);
+  color: #f5a623;
+  vertical-align: middle;
+  margin-left: 5px;
+}
+
+.members-list {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(120,120,128,.1);
+}
+
+.members-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hint);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  margin-bottom: 6px;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0;
+}
+
+.member-name {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.badge-self {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: rgba(10,132,255,.1);
+  color: var(--accent);
+}
+
+.btn-kick {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+.btn-delete-group {
+  margin-top: 10px;
+  width: 100%;
+  padding: 9px;
+  color: #ff3b30;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(255,59,48,.07);
+  border: 1.5px solid rgba(255,59,48,.2);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  transition: opacity var(--transition);
+}
+.btn-delete-group:active { opacity: .7; }
