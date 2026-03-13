@@ -6,14 +6,15 @@ const tg = window.Telegram?.WebApp;
 
 // ── State ────────────────────────────────────────────────────────────────────
 const state = {
-  user:             null,   // { telegram_id, first_name, username, group_id }
-  group:            null,   // groups row or null
-  tab:              'group',    // 'group' | 'personal'
-  page:             'watch',    // 'watch' | 'archive' | 'stats'
-  pendingVideo:     null,   // preview data while adding
-  pendingTcId:      null,   // video id awaiting timecode input
+  user:             null,
+  group:            null,
+  tab:              'group',
+  page:             'watch',
+  pendingVideo:     null,
+  pendingTcId:      null,
   selectedPriority: 0,
   selectedScope:    'group',
+  activeTag:        null,
 };
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -119,7 +120,7 @@ async function loadWatchList() {
     });
     renderVideoList(el, videos, false);
   } catch (e) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Ошибка загрузки</div><div class="empty-desc">${e.message}</div></div>`;
+    el.innerHTML = `<div class="empty-state"><div class="empty-title">Ошибка загрузки</div><div class="empty-desc">${e.message}</div></div>`;
   }
 }
 
@@ -137,7 +138,7 @@ async function loadArchive() {
       new Date(b.watched_at) - new Date(a.watched_at));
     renderVideoList(el, all, true);
   } catch (e) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Ошибка</div><div class="empty-desc">${e.message}</div></div>`;
+    el.innerHTML = `<div class="empty-state"><div class="empty-title">Ошибка</div><div class="empty-desc">${e.message}</div></div>`;
   }
 }
 
@@ -157,22 +158,22 @@ async function loadStats() {
     });
 
     el.innerHTML = `
-      ${state.group ? `<div class="stats-section-title">👫 ${state.group.name}</div>
+      ${state.group ? `<div class="stats-section-title">${state.group.name}</div>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-value">${group.length}</div><div class="stat-label">Добавлено</div></div>
         <div class="stat-card"><div class="stat-value">${group.filter(v=>v.status==='watched').length}</div><div class="stat-label">Просмотрено</div></div>
         <div class="stat-card"><div class="stat-value">${group.filter(v=>v.status==='pending').length}</div><div class="stat-label">В очереди</div></div>
-        <div class="stat-card"><div class="stat-value">${group.filter(v=>v.status==='in_progress').length}</div><div class="stat-label">На паузе ⏸</div></div>
+        <div class="stat-card"><div class="stat-value">${group.filter(v=>v.status==='in_progress').length}</div><div class="stat-label">На паузе</div></div>
       </div>` : ''}
 
-      <div class="stats-section-title">🔒 Личная статистика</div>
+      <div class="stats-section-title">Личная статистика</div>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-value">${personal.length}</div><div class="stat-label">Добавлено</div></div>
         <div class="stat-card"><div class="stat-value">${personal.filter(v=>v.status==='watched').length}</div><div class="stat-label">Просмотрено</div></div>
       </div>
 
       ${Object.keys(byPerson).length > 1 ? `
-      <div class="stats-section-title">🏆 Кто больше смотрит</div>
+      <div class="stats-section-title">По участникам</div>
       <div class="stats-grid">
         ${Object.entries(byPerson).sort((a,b)=>b[1]-a[1]).map(([name, count]) =>
           `<div class="stat-card"><div class="stat-value">${count}</div><div class="stat-label">${name}</div></div>`
@@ -180,7 +181,7 @@ async function loadStats() {
       </div>` : ''}
     `;
   } catch (e) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Ошибка</div></div>`;
+    el.innerHTML = `<div class="empty-state"><div class="empty-title">Ошибка</div></div>`;
   }
 }
 
@@ -189,13 +190,34 @@ function renderVideoList(container, videos, isArchive) {
   if (!videos.length) {
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">${isArchive ? '📁' : '🎬'}</div>
         <div class="empty-title">${isArchive ? 'Архив пуст' : 'Список пуст'}</div>
-        <div class="empty-desc">${isArchive ? 'Просмотренные видео появятся здесь через 7 дней.' : 'Добавьте первое видео — нажмите «+» или пришлите ссылку боту.'}</div>
+        <div class="empty-desc">${isArchive ? 'Просмотренные видео будут здесь.' : 'Добавьте первое видео — нажмите «+» или пришлите ссылку боту.'}</div>
       </div>`;
     return;
   }
-  container.innerHTML = videos.map(v => renderCard(v, isArchive)).join('');
+
+  const tagFilterHtml = !isArchive ? renderTagFilter(videos) : '';
+
+  const filtered = state.activeTag
+    ? videos.filter(v => (v.tags || []).includes(state.activeTag))
+    : videos;
+
+  container.innerHTML = tagFilterHtml + filtered.map(v => renderCard(v, isArchive)).join('');
+
+  container.querySelectorAll('.tag-pill').forEach(pill =>
+    pill.addEventListener('click', () => {
+      state.activeTag = state.activeTag === pill.dataset.tag ? null : pill.dataset.tag;
+      renderVideoList(container, videos, isArchive);
+    }));
+}
+
+function renderTagFilter(videos) {
+  const allTags = [...new Set(videos.flatMap(v => v.tags || []))];
+  if (!allTags.length) return '';
+  const pills = allTags.map(t =>
+    `<button class="tag-pill${state.activeTag === t ? ' active' : ''}" data-tag="${escHtml(t)}">${escHtml(t)}</button>`
+  ).join('');
+  return `<div class="tag-filter">${pills}</div>`;
 }
 
 function secondsToTime(s) {
@@ -219,27 +241,34 @@ function formatDate(iso) {
 }
 
 function renderCard(v, isArchive) {
-  const statusIcon = { pending: '📋', in_progress: '⏸', watched: '✅' }[v.status] || '📋';
-  const tags = (v.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
+  const statusClass = { pending: 'status-pending', in_progress: 'status-progress', watched: 'status-watched' }[v.status] || 'status-pending';
+  const statusLabel = { pending: 'Не смотрели', in_progress: 'На паузе', watched: 'Просмотрено' }[v.status] || '';
+  const tags = (v.tags || []).map(t => `<span class="tag">${escHtml(t)}</span>`).join('');
   const timecodeHtml = v.status === 'in_progress' && v.timecode
     ? `<div class="timecode-label">${secondsToTime(v.timecode)}</div>` : '';
 
+  const priorityLabels = ['', 'Среднее', 'Важно'];
+  const priorityBadge = v.priority > 0
+    ? `<span class="priority-badge priority-${v.priority}">${priorityLabels[v.priority]}</span>` : '';
+
   const continueBtn = v.status === 'in_progress' && v.timecode
-    ? `<a class="btn btn-continue" href="https://youtu.be/${v.video_id}?t=${v.timecode}" target="_blank">▶ Продолжить с ${secondsToTime(v.timecode)}</a>`
-    : (v.status !== 'watched' ? `<a class="btn btn-ghost" href="${v.url}" target="_blank">▶ Смотреть</a>` : '');
+    ? `<a class="btn btn-continue" href="https://youtu.be/${v.video_id}?t=${v.timecode}" target="_blank">Продолжить с ${secondsToTime(v.timecode)}</a>`
+    : (v.status !== 'watched' ? `<a class="btn btn-ghost" href="${v.url}" target="_blank">Смотреть</a>` : '');
 
   let actionButtons = '';
   if (!isArchive) {
     if (v.status === 'pending') {
       actionButtons = `
-        <button class="btn btn-outline" data-action="timecode" data-id="${v.id}">⏸ Остановились</button>
-        <button class="btn btn-watched" data-action="watched" data-id="${v.id}">✅ Просмотрено</button>`;
+        <button class="btn btn-outline" data-action="timecode" data-id="${v.id}">Остановились</button>
+        <button class="btn btn-watched" data-action="watched" data-id="${v.id}">Просмотрено</button>`;
     } else if (v.status === 'in_progress') {
       actionButtons = `
-        <button class="btn btn-outline" data-action="timecode" data-id="${v.id}">✏️ Изменить время</button>
-        <button class="btn btn-watched" data-action="watched" data-id="${v.id}">✅ Просмотрено</button>`;
+        <button class="btn btn-outline" data-action="timecode" data-id="${v.id}">Изменить время</button>
+        <button class="btn btn-watched" data-action="watched" data-id="${v.id}">Просмотрено</button>`;
     }
-    actionButtons += `<button class="btn btn-danger" data-action="delete" data-id="${v.id}">🗑</button>`;
+    actionButtons += `<button class="btn btn-danger" data-action="delete" data-id="${v.id}">Удалить</button>`;
+  } else {
+    actionButtons = `<button class="btn btn-outline" data-action="restore" data-id="${v.id}">Вернуть в список</button>`;
   }
 
   const watchedLabel = isArchive && v.watched_at
@@ -250,10 +279,13 @@ function renderCard(v, isArchive) {
       <div class="card-top">
         <div class="card-thumb">
           <img src="${v.thumbnail || ''}" alt="" loading="lazy" onerror="this.style.display='none'">
-          <span class="status-badge">${statusIcon}</span>
+          <span class="status-dot ${statusClass}" title="${statusLabel}"></span>
         </div>
         <div class="card-info">
-          <div class="card-title">${escHtml(v.title)}</div>
+          <div class="card-title-row">
+            <div class="card-title">${escHtml(v.title)}</div>
+            ${priorityBadge}
+          </div>
           <div class="card-meta"><span class="added-by">${escHtml(v.added_by_name)}</span></div>
           ${tags ? `<div class="tags">${tags}</div>` : ''}
           ${timecodeHtml}
@@ -307,8 +339,9 @@ function setupListeners() {
   document.getElementById('btnSaveTimecode').addEventListener('click', onSaveTimecode);
   document.getElementById('timecodeInput').addEventListener('input', formatTimecodeInput);
 
-  // Card actions (delegated)
+  // Card actions (delegated — watch list and archive)
   document.getElementById('videoList').addEventListener('click', onCardAction);
+  document.getElementById('archiveList').addEventListener('click', onCardAction);
 }
 
 function initScopeButtons() {
@@ -363,7 +396,7 @@ async function onFetchVideo() {
   btn.disabled = false;
 
   if (!info) {
-    showToast('❌ Не удалось загрузить видео. Проверь ссылку.');
+    showToast('Не удалось загрузить видео. Проверь ссылку.');
     return;
   }
 
@@ -396,7 +429,7 @@ async function onSaveVideo() {
       priority:    state.selectedPriority,
     });
     closeAddModal();
-    showToast('✅ Видео добавлено!');
+    showToast('Видео добавлено');
 
     // Reload if we're on matching tab
     if (state.page === 'watch' && state.tab === state.selectedScope) {
@@ -406,7 +439,7 @@ async function onSaveVideo() {
       setTab(state.selectedScope);
     }
   } catch (e) {
-    showToast('❌ Ошибка: ' + e.message);
+    showToast('Ошибка: ' + e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Добавить';
@@ -443,10 +476,10 @@ async function onSaveTimecode() {
   try {
     await apiUpdateTimecode(state.pendingTcId, seconds);
     closeTimecodeModal();
-    showToast('⏸ Таймкод сохранён');
+    showToast('Таймкод сохранён');
     loadWatchList();
   } catch (e) {
-    showToast('❌ Ошибка: ' + e.message);
+    showToast('Ошибка: ' + e.message);
   }
 }
 
@@ -462,19 +495,29 @@ async function onCardAction(e) {
     btn.disabled = true;
     try {
       await apiUpdateStatus(id, 'watched');
-      showToast('✅ Отмечено как просмотренное');
+      showToast('Отмечено как просмотренное');
       loadWatchList();
     } catch (e) {
-      showToast('❌ Ошибка: ' + e.message);
+      showToast('Ошибка: ' + e.message);
+      btn.disabled = false;
+    }
+  } else if (action === 'restore') {
+    btn.disabled = true;
+    try {
+      await apiRestoreVideo(id);
+      showToast('Видео возвращено в список');
+      loadArchive();
+    } catch (e) {
+      showToast('Ошибка: ' + e.message);
       btn.disabled = false;
     }
   } else if (action === 'delete') {
     if (!confirm('Удалить видео из списка?')) return;
     try {
       await apiDeleteVideo(id);
-      loadWatchList();
+      state.page === 'archive' ? loadArchive() : loadWatchList();
     } catch (e) {
-      showToast('❌ Ошибка удаления');
+      showToast('Ошибка удаления');
     }
   }
 }

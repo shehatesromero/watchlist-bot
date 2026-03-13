@@ -94,8 +94,18 @@ async function apiAddVideo({ userId, groupId, addedByName, videoData, scope, tag
 async function apiUpdateStatus(id, status, timecode = 0) {
   const update = { status };
   if (status === 'in_progress') update.timecode = timecode;
-  if (status === 'watched') update.watched_at = new Date().toISOString();
+  if (status === 'watched') {
+    update.watched_at = new Date().toISOString();
+    update.is_archived = true;
+  }
   const { error } = await db.from('videos').update(update).eq('id', id);
+  if (error) throw error;
+}
+
+async function apiRestoreVideo(id) {
+  const { error } = await db.from('videos')
+    .update({ is_archived: false, status: 'pending', watched_at: null })
+    .eq('id', id);
   if (error) throw error;
 }
 
